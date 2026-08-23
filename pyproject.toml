@@ -19,6 +19,9 @@ dependencies = [
     "numpy>=2.0",
     "streamlit>=1.40",
     "requests>=2.32",
+    "langgraph>=0.2",
+    "langchain-core>=0.3",
+    "langchain-groq>=0.2",
 ]
 
 [project.optional-dependencies]

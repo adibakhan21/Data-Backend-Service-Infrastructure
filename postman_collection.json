@@ -1,0 +1,23 @@
+{
+  "info": {
+    "name": "TradeTrack Analytics Engine",
+    "description": "Every endpoint, with the failure cases included. Import into Postman and set {{base_url}} (default http://127.0.0.1:8000).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [{ "key": "base_url", "value": "http://127.0.0.1:8000" }],
+  "item": [
+    { "name": "health", "request": { "method": "GET", "url": "{{base_url}}/health" } },
+    { "name": "metrics - global", "request": { "method": "GET", "url": "{{base_url}}/metrics" } },
+    { "name": "metrics - top by notional", "request": { "method": "GET", "url": "{{base_url}}/metrics/top?sort_by=notional&k=5" } },
+    { "name": "metrics - one symbol", "request": { "method": "GET", "url": "{{base_url}}/metrics/symbol/AAPL" } },
+    { "name": "metrics - unknown symbol (404)", "request": { "method": "GET", "url": "{{base_url}}/metrics/symbol/ZZZZ" } },
+    { "name": "trades - paged", "request": { "method": "GET", "url": "{{base_url}}/trades?limit=5" } },
+    { "name": "trades - filtered", "request": { "method": "GET", "url": "{{base_url}}/trades?symbol=NVDA&status=REJECTED&limit=5" } },
+    { "name": "trades - by id", "request": { "method": "GET", "url": "{{base_url}}/trades/T0000000042" } },
+    { "name": "trades - unknown id (404)", "request": { "method": "GET", "url": "{{base_url}}/trades/NOPE" } },
+    { "name": "trades - limit over cap (422)", "request": { "method": "GET", "url": "{{base_url}}/trades?limit=99999" } },
+    { "name": "anomalies - critical", "request": { "method": "GET", "url": "{{base_url}}/anomalies?severity=CRITICAL&limit=5" } },
+    { "name": "anomalies - by type", "request": { "method": "GET", "url": "{{base_url}}/anomalies?anomaly_type=HIGH_LATENCY&limit=5" } },
+    { "name": "signals - high confidence", "request": { "method": "GET", "url": "{{base_url}}/signals?min_confidence=0.7" } }
+  ]
+}

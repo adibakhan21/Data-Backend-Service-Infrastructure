@@ -52,10 +52,55 @@ flowchart TB
 | `db.py` | SQLite schema, bulk load, read-back | Query logic beyond `SELECT *` |
 | `store.py` | The in-memory snapshot and all derived views | HTTP |
 | `api/` | HTTP surface, validation, error mapping, pagination | Analytics |
+| `agents/` | Triaging what the detector found: classify, gather evidence, decide | Detection itself |
 | `dashboard/` | Presentation only; talks to the API over HTTP | Direct data access |
 
 The dependency direction is strictly one-way: `api -> store -> processing/anomalies/signals -> algorithms/models`.
 Nothing lower imports anything higher, so every layer is testable alone.
+
+### 2a. The agent layer
+
+The detector and the agent answer different questions, and keeping them separate
+is the main design decision here:
+
+* **Detector** — *is this anomalous?* Deterministic, exhaustive, runs over every
+  row, measured against ground truth. No model.
+* **Agent** — *what should be done about this one, and why?* Non-deterministic,
+  runs only over what the detector surfaced, and produces a justification.
+
+Putting the LLM in the detector would have been the obvious move and the wrong
+one: it would make an exhaustive O(n) scan cost an API call per row, and it would
+make the precision/recall numbers depend on a model version. The agent runs over
+hundreds of findings, not millions of rows.
+
+```mermaid
+stateDiagram-v2
+    [*] --> classify
+    classify --> investigate
+    investigate --> execute_tool
+    execute_tool --> decide
+    decide --> investigate: NEED_MORE_EVIDENCE (budget remains)
+    decide --> [*]: AUTO_CLOSE / ESCALATE
+```
+
+Four decisions worth defending:
+
+1. **Every tool takes one string and returns one sentence.** Multi-argument tool
+   calls are where small models most often produce malformed JSON. Collapsing the
+   signature removes that failure mode instead of retrying around it.
+2. **Tools never raise.** An unknown symbol returns "no data". A raising tool ends
+   the run; a tool that reports absence lets the agent reason about it and try
+   something else.
+3. **The loop is bounded, and exhaustion escalates.** Defaulting to AUTO_CLOSE on
+   a budget overrun would make the failure mode silent, which is the worst
+   property an alerting system can have.
+4. **A hallucinated tool name is recorded as evidence, not raised.** Telling the
+   model its call was invalid lets the next iteration self-correct, and keeps the
+   failure visible in the audit trail.
+
+**What is not here:** no persistent agent memory, no multi-agent negotiation, no
+human-in-the-loop interrupt, no streaming. LangGraph supports all four. None is
+load-bearing for single-anomaly triage, and each would need its own evaluation.
 
 ## 3. Request flow
 
@@ -132,10 +177,23 @@ Measured or derived, in the order they actually bite:
 | 3 | Snapshot rebuild is single-threaded | ~5M rows | Slow, blocking restarts |
 | 4 | Exact percentiles retain every latency | ~10M rows | O(n) memory just for p95 |
 | 5 | Python GIL bounds one worker to one core | high concurrency | CPU-bound requests queue |
+| 6 | Agent latency is one LLM round trip per node | interactive use | Triage is seconds, not milliseconds |
 
-At the tested 200k rows none of these are active: snapshot build is well under a
-second and requests are single-digit milliseconds. That is the point of listing
-the trigger next to the bottleneck.
+At the tested 200k rows none of #1-#5 are active: snapshot build is 0.19s and
+requests are single-digit milliseconds. That is the point of listing the trigger
+next to the bottleneck.
+
+**Bottleneck #1 is now measured rather than estimated.** `benchmarks/scale_profile.md`:
+snapshot build is 0.19s / 228 MB at 200k rows and 6.68s / 1,872 MB at 5M. Build
+time grows close to linearly, so *time* is not the constraint — memory is, and
+because each worker holds its own snapshot, memory is also what caps worker count.
+That measurement is what makes §7.1 and §7.3 supported rather than merely plausible.
+
+**Bottleneck #6 is why triage is a batch job, not a request path.** Each anomaly
+costs at least three sequential LLM calls. Putting that behind a synchronous HTTP
+endpoint would give a multi-second p95; it belongs on a queue with results written
+back, which is the one piece of infrastructure this design would genuinely need
+before production.
 
 ## 7. Scaling: why / what / tradeoff
 
