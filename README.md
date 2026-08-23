@@ -358,6 +358,28 @@ benchmarks/        Generated results (results.md, detector_eval.md)
 
 ---
 
+## Load test
+
+1,000 requests per endpoint at concurrency 16 against a 200K-trade snapshot, one
+uvicorn worker. Full table in [`benchmarks/load_test.md`](benchmarks/load_test.md).
+
+| Endpoint | p50 | p99 | RPS |
+|---|---|---|---|
+| `/health` | 4.0ms | 8.0ms | 3,813 |
+| `/metrics` (precomputed) | 4.0ms | 7.7ms | 3,745 |
+| `/trades/{id}` (O(1) hash) | 4.2ms | 7.9ms | 3,570 |
+| `/trades?limit=100` (O(n) mask) | 18.6ms | 35.0ms | 836 |
+| `/trades?symbol=NVDA` (O(n) mask) | 25.3ms | 34.9ms | 620 |
+
+**0 errors across 5,600 requests.** The spread is the point: the O(n) filtered
+scans are ~4x the p99 and ~1/5 the throughput of everything precomputed. That is
+the measured version of bottleneck #2 in the design doc, which until now was
+reasoned about rather than observed — and it is what makes "push filtering into
+SQL" the concrete next step rather than a hypothetical one.
+
+Client-observed, loopback, single worker: a floor on real latency, not a
+prediction of it.
+
 ## Scale profile
 
 Measured, not extrapolated — `make scale` regenerates
@@ -392,8 +414,6 @@ Stated plainly, because every one of these is a real gap:
   wrong past roughly 5-10M rows.
 - **No authentication, rate limiting or retries.** Nothing to retry (no outbound
   calls), and auth is out of scope for a local analytics service.
-- **No load testing.** There are per-operation benchmarks but no concurrent-request
-  numbers, so claims about API latency *under load* are currently unmeasured.
 - **The agent is evaluated on a modest sample**, on one model, on synthetic
   anomalies. It is not a claim about agent performance in general.
 - **Exact percentiles retain every observation** — O(n) memory purely for p95.
@@ -402,8 +422,8 @@ Stated plainly, because every one of these is a real gap:
 
 In the order they would actually matter, each with its trigger:
 
-1. **Load testing** — the largest gap between what is measured and what is claimed.
-2. **Push filtering into SQL** when `GET /trades` p95 exceeds ~100ms.
+1. **Push filtering into SQL** — the load test puts `GET /trades?symbol=` at 620 RPS
+   against 3,700 for the precomputed endpoints, so this is now the measured next step.
 3. **t-digest percentiles** when latency arrays dominate snapshot memory.
 4. **`ETag`/`Cache-Control`** when repeated identical reads dominate the request mix.
 5. **Shared snapshot (Redis)** at more than one replica — and not before, since it

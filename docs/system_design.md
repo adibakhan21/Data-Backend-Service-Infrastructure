@@ -189,6 +189,12 @@ time grows close to linearly, so *time* is not the constraint — memory is, and
 because each worker holds its own snapshot, memory is also what caps worker count.
 That measurement is what makes §7.1 and §7.3 supported rather than merely plausible.
 
+**Bottleneck #2 is now measured too.** `benchmarks/load_test.md`, at concurrency 16
+on 200k rows: precomputed endpoints run 3,700-3,800 RPS at ~8ms p99, while the
+O(n)-mask endpoints run 620-836 RPS at ~35ms p99. Roughly 4x the tail latency and
+a fifth of the throughput, with zero errors across 5,600 requests. That measured
+gap is what turns §7.1 from a plausible optimisation into the obvious next one.
+
 **Bottleneck #6 is why triage is a batch job, not a request path.** Each anomaly
 costs at least three sequential LLM calls. Putting that behind a synchronous HTTP
 endpoint would give a multi-second p95; it belongs on a queue with results written

@@ -1,4 +1,4 @@
-.PHONY: help install data api dashboard test bench eval agents eval-agents scale docker clean
+.PHONY: help install data api dashboard test bench eval agents eval-agents scale loadtest docker clean
 
 help:
 	@echo "install    - create .venv and install dependencies"
@@ -11,6 +11,7 @@ help:
 	@echo "agents     - triage anomalies through the LangGraph agent (no key needed)"
 	@echo "eval-agents- score the agent: tool selection, output validity, routing"
 	@echo "scale      - profile snapshot build + memory as the dataset grows"
+	@echo "loadtest   - measure API p50/p95/p99 and RPS under concurrency (API must be running)"
 	@echo "docker     - build and start api + dashboard via docker compose"
 	@echo "clean      - remove the database, caches and generated artefacts"
 
@@ -45,6 +46,9 @@ eval-agents:
 
 scale:
 	.venv/bin/python scripts/scale_profile.py
+
+loadtest:
+	.venv/bin/python scripts/load_test.py
 
 docker:
 	docker compose --profile seed run --rm seed
