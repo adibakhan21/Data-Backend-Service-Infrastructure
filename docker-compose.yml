@@ -1,0 +1,52 @@
+# Two services, one image. The dashboard is a separate process because it has a
+# different failure mode and a different scaling story from the API - if the UI
+# hangs, the API keeps serving.
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # Named volume, not a bind mount: the database is generated data, not
+      # source, and it should not appear as an untracked file in the repo.
+      - trades-data:/app/data
+    environment:
+      TRADETRACK_DB_PATH: /app/data/trades.db
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health',timeout=2).status==200 else 1)"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    build: .
+    ports:
+      - "8501:8501"
+    environment:
+      # Service name, not localhost: inside the compose network the API is
+      # reachable by its service name, and 127.0.0.1 would be this container.
+      TRADETRACK_API_URL: http://api:8000
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      streamlit run dashboard/app.py
+      --server.address=0.0.0.0
+      --server.port=8501
+      --server.headless=true
+
+  # Profile-gated one-shot loader, so `docker compose up` does not regenerate
+  # data on every start. Run it explicitly:
+  #   docker compose --profile seed run --rm seed
+  seed:
+    build: .
+    profiles: ["seed"]
+    volumes:
+      - trades-data:/app/data
+    environment:
+      TRADETRACK_DB_PATH: /app/data/trades.db
+    command: ["python", "scripts/generate_data.py", "--rows", "200000", "--reset"]
+
+volumes:
+  trades-data:

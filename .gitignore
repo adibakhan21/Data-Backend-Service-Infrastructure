@@ -1,0 +1,13 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+
+# Generated data: reproducible from `python scripts/generate_data.py --seed 42`,
+# so it is committed nowhere and regenerated everywhere.
+data/*.db
+data/*.db-wal
+data/*.db-shm
+
+.env
