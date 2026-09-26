@@ -9,11 +9,11 @@ column is the part that transfers.** Regenerate with `python scripts/run_benchma
 
 | Benchmark | n | Baseline | Optimised | Baseline | Optimised | Speedup | Complexity change |
 |---|---|---|---|---|---|---|---|
-| Trade lookup by id (worst case: last row) | 200,000 | linear scan | hash index | 6.582 ms | 21.5 ns | 306,468.1x | O(n) -> O(1) average. Index build is a one-time O(n). |
-| Top-10 by quantity | 200,000 | full sort | size-k heap | 18.969 ms | 13.661 ms | 1.4x | O(n log n) -> O(n log k) time; O(n) -> O(k) space at k=10. |
-| Rolling failure rate (window=500) | 50,000 | recompute window | running sum | 75.770 ms | 3.478 ms | 21.8x | O(n*w) -> O(n) time at w=500; O(n) -> O(w) space. |
-| Synthetic data generation | 100,000 | row-by-row Python | vectorised numpy | 806.022 ms | 50.035 ms | 16.1x | Both O(n). Constant-factor only: the per-row work moves from the Python interpreter into C. |
-| SQLite bulk insert | 20,000 | commit per row | executemany, one txn | 4.623 s | 109.902 ms | 42.1x | Both O(n log n) for index maintenance. The win is fsync count: n commits -> 1. |
+| Trade lookup by id (worst case: last row) | 200,000 | linear scan | hash index | 6.568 ms | 22.1 ns | 296,594.4x | O(n) -> O(1) average. Index build is a one-time O(n). |
+| Top-10 by quantity | 200,000 | full sort | size-k heap | 18.757 ms | 14.219 ms | 1.3x | O(n log n) -> O(n log k) time; O(n) -> O(k) space at k=10. |
+| Rolling failure rate (window=500) | 50,000 | recompute window | running sum | 75.558 ms | 3.450 ms | 21.9x | O(n*w) -> O(n) time at w=500; O(n) -> O(w) space. |
+| Synthetic data generation | 100,000 | row-by-row Python | vectorised numpy | 809.066 ms | 49.112 ms | 16.5x | Both O(n). Constant-factor only: the per-row work moves from the Python interpreter into C. |
+| SQLite bulk insert | 20,000 | commit per row | executemany, one txn | 6.242 s | 124.925 ms | 50.0x | Both O(n log n) for index maintenance. The win is fsync count: n commits -> 1. |
 
 ## Reading these honestly
 
